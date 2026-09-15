@@ -1,11 +1,11 @@
 import styles from './roksi4yk-services.module.css';
 
 const services = [
-  ['01', 'MAKEUP', 'Макіяж', 'Для особистих образів, подій, зйомок і beauty-проєктів.'],
-  ['02', 'CONSULTATIONS', 'Консультації', 'Індивідуальний погляд на косметичку, техніку та образ, що пасує саме тобі.'],
-  ['03', 'EDUCATION', 'Навчання', 'Практика макіяжу для тих, хто хоче краще розуміти власну красу.'],
-  ['04', 'TEEN BEAUTY', 'Teen beauty', 'Делікатне знайомство з макіяжем і доглядом у власному темпі.'],
-  ['05', 'BRAND & CONTENT', 'Бренди та контент', 'Beauty-образи для кампаній, творчих зйомок і візуальних історій.'],
+  ['01', 'MAKEUP', 'Професійний макіяж', 'EVENTS · SHOOTINGS · SPECIAL MOMENTS', 'makeup-url'],
+  ['02', 'CONSULTATIONS', 'Персональна beauty-консультація', 'KYIV · ONLINE', 'consultations-url'],
+  ['03', 'EDUCATION', 'Навчання макіяжу', 'INDIVIDUAL · GROUP', 'education-url'],
+  ['04', 'TEEN BEAUTY', 'Beauty для підлітків', 'CARE · TECHNIQUE · CONFIDENCE', 'teen-beauty-url'],
+  ['05', 'BRAND & CONTENT', 'Beauty для брендів і контенту', 'CAMPAIGNS · CONTENT · COLLABORATIONS', 'brand-content-url'],
 ] as const;
 
 function escapeHtml(value: string): string {
@@ -13,10 +13,27 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => entities[character] ?? character);
 }
 
+function safeDestination(value: string | null): string {
+  const candidate = value?.trim();
+  if (!candidate || candidate.startsWith('//') || /[\u0000-\u001f\u007f\\]/.test(candidate)) return '';
+
+  try {
+    const base = new URL(document.baseURI);
+    const url = new URL(candidate, base);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    const absolute = /^[a-z][a-z\d+.-]*:/i.test(candidate);
+    return absolute || url.origin === base.origin ? candidate : '';
+  } catch {
+    return '';
+  }
+}
+
 class Roksi4ykServices extends HTMLElement {
   private observer?: IntersectionObserver;
 
-  static get observedAttributes() { return ['display-name']; }
+  static get observedAttributes() {
+    return ['display-name', ...services.map(([, , , , property]) => property)];
+  }
   connectedCallback() { this.render(); }
   disconnectedCallback() { this.observer?.disconnect(); }
   attributeChangedCallback() { if (this.isConnected) this.render(); }
@@ -33,16 +50,25 @@ class Roksi4ykServices extends HTMLElement {
             <p class="${styles.lead}">Макіяж, консультації та освіта — щоб підкреслити твій характер, а не приховати його.</p>
           </div>
           <div class="${styles.servicesList}" aria-label="Напрями роботи">
-            ${services.map(([number, category, title, description]) => `
-              <article class="${styles.service}">
-                <span class="${styles.serviceNumber}" aria-hidden="true">${number}</span>
-                <div class="${styles.serviceMain}">
-                  <p class="${styles.serviceSubtitle}">${category}</p>
-                  <h3 class="${styles.serviceTitle}">${title}</h3>
-                </div>
-                <p class="${styles.serviceDescription}">${description}</p>
-              </article>
-            `).join('')}
+            ${services.map(([number, category, title, meta, property]) => {
+              const destination = safeDestination(this.getAttribute(property));
+              const tag = destination ? 'a' : 'article';
+              const interactionClass = destination ? styles.serviceLink : styles.serviceStatic;
+              const linkAttributes = destination
+                ? ` href="${escapeHtml(destination)}" aria-label="${escapeHtml(`Послуга ${number}: ${title}. Перейти до сторінки`)}"`
+                : '';
+              return `
+                <${tag} class="${styles.service} ${interactionClass}"${linkAttributes}>
+                  <span class="${styles.serviceNumber}" aria-hidden="true">${number}</span>
+                  <div class="${styles.serviceMain}">
+                    <p class="${styles.serviceSubtitle}">${category}</p>
+                    <h3 class="${styles.serviceTitle}">${title}</h3>
+                  </div>
+                  <p class="${styles.serviceMeta}">${meta}</p>
+                  <span class="${styles.serviceArrow}" aria-hidden="true">→</span>
+                </${tag}>
+              `;
+            }).join('')}
           </div>
         </div>
       </section>
